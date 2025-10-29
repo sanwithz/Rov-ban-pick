@@ -1,0 +1,948 @@
+// Paste this into a React+Tailwind project. Outputs a single component for preview.
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+
+// --- SVG ICONS ---
+// Using inline SVGs to avoid external dependencies.
+
+const IconGear = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.7-3.7a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0l-3.7 3.7zM11.6 16.1l1.6-1.6a1 1 0 0 0 0-1.4l-3.7-3.7a1 1 0 0 0-1.4 0l-1.6 1.6a1 1 0 0 0 0 1.4l3.7 3.7a1 1 0 0 0 1.4 0zM19.9 14.1l-1.6 1.6a1 1 0 0 0 0 1.4l3.7 3.7a1 1 0 0 0 1.4 0l1.6-1.6a1 1 0 0 0 0-1.4l-3.7-3.7a1 1 0 0 0-1.4 0zM4.1 14.1l-1.6 1.6a1 1 0 0 0 0 1.4l3.7 3.7a1 1 0 0 0 1.4 0l1.6-1.6a1 1 0 0 0 0-1.4l-3.7-3.7a1 1 0 0 0-1.4 0zM2.9 8.1l1.6-1.6a1 1 0 0 1 1.4 0l3.7 3.7a1 1 0 0 1 0 1.4l-1.6 1.6a1 1 0 0 1-1.4 0L2.9 9.5a1 1 0 0 1 0-1.4z" />
+    <path d="M12.5 7.9A5 5 0 0 0 8 3.4s0 0 0 0a5 5 0 0 0-4.6 5.1A5 5 0 0 0 8 13.1a5 5 0 0 0 4.6-5.1A5 5 0 0 0 12.5 7.9z" />
+    <path d="m16.6 11.8 1.4 1.4a.5.5 0 0 0 .7 0l2.8-2.8a.5.5 0 0 0 0-.7l-1.4-1.4a.5.5 0 0 0-.7 0L16.6 11a.5.5 0 0 0 0 .7z" />
+  </svg>
+);
+
+const IconRole = ({ type = 'All', size = 6 }) => {
+  const c = `w-${size} h-${size} text-slate-400`;
+  switch (type) {
+    case 'Flighter': return <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.5 3.5v17M6 3.5v17h-2V3.5h2zm10.5 0h-5l5 6.5-5 6.5h5v-13z" /></svg>; // Custom fighter/warrior
+    case 'Mage': return <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 11V4c0-1.1-.9-2-2-2H9a2 2 0 0 0-2 2v7M5 11h14" /></svg>; // Custom mage/staff
+    case 'Jungle': return <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m8 10 4 4 4-4M8 14l4 4 4-4" /></svg>; // Custom assassin/jungle
+    case 'Carry': return <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>; // Custom carry/archer
+    case 'Support': return <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>; // Shield
+    default: return <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>; // All
+  }
+};
+
+const IconX = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
+const IconCheck = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
+const IconChevronDown = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9"></polyline>
+  </svg>
+);
+
+// --- LOCAL STORAGE HOOK ---
+// Persists settings
+const useLocalStorage = (key, initialValue) => {
+  const [storedValue, setStoredValue] = useState(() => {
+    if (typeof window === "undefined") return initialValue;
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error("Error reading from localStorage", error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.error("Error writing to localStorage", error);
+    }
+  };
+  return [storedValue, setValue];
+};
+
+// --- DATA ---
+// Hero roles
+const ROLES = ['Flighter', 'Mage', 'Carry', 'Support', 'Jungle'];
+
+// --- SMALL COMPONENTS ---
+
+/**
+ * Fallback avatar if image fails to load
+ */
+const FallbackAvatar = ({ name, className = "" }) => {
+  const initials = name ? name.substring(0, 2).toUpperCase() : '??';
+  return (
+    <div
+      className={`flex items-center justify-center w-full h-full rounded bg-slate-700 text-slate-300 font-bold ${className}`}
+      aria-label={name}
+    >
+      {initials}
+    </div>
+  );
+};
+
+/**
+ * A single hero thumbnail in the grid
+ */
+const HeroThumbnail = React.memo(({ hero, onClick, onDragStart, isBanned, isPicked, isSelected, settings }) => {
+  const [imgError, setImgError] = useState(false);
+  
+  const { density, animations } = settings;
+  const sizeClass = density === 'compact' ? 'w-12 h-12' : 'w-14 h-14';
+
+  const stateClasses = useMemo(() => {
+    if (isBanned) return 'opacity-40 ring-2 ring-red-500/80 shadow-inner-red';
+    if (isPicked) return 'ring-2 ring-green-500/80 shadow-inner-green';
+    if (isSelected) return 'ring-2 ring-cyan-500';
+    return 'border border-slate-700/50 hover:border-cyan-500/80 shadow-sm';
+  }, [isBanned, isPicked, isSelected]);
+  
+  const transitionClass = animations ? 'transition-all duration-200' : '';
+
+  const handleClick = (e) => {
+    if (!isBanned && !isPicked) {
+      onClick(hero, e);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick(e);
+    }
+  };
+
+  const handleDragStart = (e) => {
+    if (!isBanned && !isPicked) {
+      onDragStart(e, hero);
+    } else {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Select ${hero.hero_name}`}
+      aria-disabled={isBanned || isPicked}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      draggable={!isBanned && !isPicked}
+      onDragStart={handleDragStart}
+      className={`relative ${sizeClass} rounded-lg cursor-pointer shrink-0 ${stateClasses} ${transitionClass} hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-[#0B1220]`}
+    >
+      {!imgError ? (
+        <img
+          src={hero.image_url}
+          alt={hero.hero_name}
+          loading="lazy"
+          className="w-full h-full object-cover rounded-lg"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <FallbackAvatar name={hero.hero_name} className="rounded-lg" />
+      )}
+      {(isBanned || isPicked) && (
+        <div className="absolute inset-0 bg-black/50 rounded-lg"></div>
+      )}
+    </div>
+  );
+});
+
+/**
+ * Tooltip card shown on hero click
+ */
+const HeroTooltip = ({ hero, position, onClose, onBan, onPick, settings }) => {
+  const ref = useRef(null);
+
+  // Close tooltip on 'Escape' key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key.toLowerCase() === 'b') {
+        onBan(hero);
+        onClose();
+      }
+      if (e.key.toLowerCase() === 'p') {
+        onPick(hero);
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [hero, onClose, onBan, onPick]);
+
+  // Close tooltip on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [ref, onClose]);
+
+  if (!hero || !position) return null;
+
+  return (
+    <div
+      ref={ref}
+      style={{ left: position.x, top: position.y }}
+      className={`absolute z-30 w-56 p-3 rounded-lg bg-[#121826] shadow-xl shadow-black/30 border border-slate-700/50 ${settings.animations ? 'animate-fade-in' : ''}`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded shrink-0">
+          <img src={hero.image_url} alt={hero.hero_name} className="w-full h-full object-cover rounded" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-bold text-white text-lg">{hero.hero_name}</h3>
+          <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded-full">{hero.hero_type}</span>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => { onBan(hero); onClose(); }}
+          className="w-full px-3 py-2 text-sm font-semibold rounded bg-red-600/20 text-red-400 border border-red-600/50 hover:bg-red-600/30 transition-colors"
+        >
+          BAN (B)
+        </button>
+        <button
+          onClick={() => { onPick(hero); onClose(); }}
+          className="w-full px-3 py-2 text-sm font-semibold rounded bg-green-600/20 text-green-400 border border-green-600/50 hover:bg-green-600/30 transition-colors"
+        >
+          PICK (P)
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * A single slot for a ban or pick
+ */
+const SlotBox = ({ hero, type, onRemove, onDrop, onDragOver, onDragLeave, isTargeted }) => {
+  const isBan = type === 'ban';
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false); // Reset error state when hero changes
+  }, [hero]);
+
+  const baseClasses = "relative h-16 w-full rounded-lg flex items-center justify-center transition-colors duration-200";
+  const stateClasses = isBan
+    ? 'bg-red-900/10 border-2 border-dashed border-red-800/40'
+    : 'bg-green-900/10 border-2 border-dashed border-green-800/40';
+  const targetClasses = isTargeted
+    ? (isBan ? 'bg-red-900/30' : 'bg-green-900/30')
+    : '';
+
+  if (hero) {
+    return (
+      <div
+        className={`relative h-16 w-full rounded-lg group ${isBan ? 'bg-red-800/20' : 'bg-green-800/20'} border ${isBan ? 'border-red-600/50' : 'border-green-600/50'}`}
+        onDragOver={onDragOver}
+      >
+        <div className="flex items-center h-full p-2">
+          {!imgError ? (
+            <img
+              src={hero.image_url}
+              alt={hero.hero_name}
+              className="w-12 h-12 object-cover rounded-md"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <FallbackAvatar name={hero.hero_name} className="w-12 h-12 rounded-md" />
+          )}
+          <span className="ml-2 text-sm font-medium text-slate-200 truncate">{hero.hero_name}</span>
+        </div>
+        <button
+          onClick={onRemove}
+          aria-label={`Remove ${hero.hero_name}`}
+          className="absolute top-1 right-1 p-0.5 rounded-full bg-black/30 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+        >
+          <IconX />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`${baseClasses} ${stateClasses} ${targetClasses}`}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+    >
+      <span className="text-xs font-medium text-slate-600 uppercase">
+        {type}
+      </span>
+    </div>
+  );
+};
+
+/**
+ * Column of Ban/Pick slots for a team
+ */
+const SlotColumn = ({ teamName, bans, picks, onRemove, onDrop, onDragOver, onDragLeave, dragTarget }) => {
+  return (
+    <div className="w-48 lg:w-56 shrink-0 bg-[#121826] p-3 rounded-lg shadow-inner-dark">
+      <h3 className={`font-bold text-lg mb-3 ${teamName === 'Team A' ? 'text-cyan-400' : 'text-orange-400'}`}>
+        {teamName}
+      </h3>
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-red-500 uppercase tracking-wider">BANS</h4>
+        {bans.map((hero, i) => (
+          <SlotBox
+            key={`ban-${i}`}
+            hero={hero}
+            type="ban"
+            onRemove={() => onRemove(teamName, 'ban', i)}
+            onDrop={(e) => onDrop(e, teamName, 'ban', i)}
+            onDragOver={(e) => onDragOver(e, teamName, 'ban', i)}
+            onDragLeave={onDragLeave}
+            isTargeted={dragTarget?.team === teamName && dragTarget?.type === 'ban' && dragTarget?.index === i}
+          />
+        ))}
+        
+        <h4 className="text-xs font-semibold text-green-500 uppercase tracking-wider pt-3">PICKS</h4>
+        {picks.map((hero, i) => (
+          <SlotBox
+            key={`pick-${i}`}
+            hero={hero}
+            type="pick"
+            onRemove={() => onRemove(teamName, 'pick', i)}
+            onDrop={(e) => onDrop(e, teamName, 'pick', i)}
+            onDragOver={(e) => onDragOver(e, teamName, 'pick', i)}
+            onDragLeave={onDragLeave}
+            isTargeted={dragTarget?.team === teamName && dragTarget?.type === 'pick' && dragTarget?.index === i}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Filter bar with role icons
+ */
+const FilterBar = ({ activeFilter, onFilterChange }) => {
+  const ALL_FILTERS = ['All', ...ROLES];
+
+  return (
+    <div className="flex items-center gap-2 p-3 border-b border-slate-700/50 shrink-0">
+      {ALL_FILTERS.map(role => {
+        const isActive = activeFilter === role;
+        return (
+          <button
+            key={role}
+            onClick={() => onFilterChange(role)}
+            aria-pressed={isActive}
+            className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-colors ${
+              isActive
+                ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/20'
+                : 'bg-slate-800/50 hover:bg-slate-700/70 text-slate-300'
+            }`}
+          >
+            <IconRole type={role} size={4} />
+            <span className="text-xs font-semibold">{role}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
+ * Scrollable grid of heroes
+ */
+const HeroGrid = ({ heroes, onHeroClick, onDragStart, bannedHeroIds, pickedHeroIds, selectedHero, settings }) => {
+  const { density, animations } = settings;
+  const gridCols = density === 'compact'
+    ? 'grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12'
+    : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-10';
+  
+  const gap = density === 'compact' ? 'gap-2' : 'gap-3';
+
+  if (!heroes.length) {
+    return <div className="flex-1 flex items-center justify-center text-slate-500">No heroes found for this filter.</div>;
+  }
+
+  return (
+    <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
+      <div className={`grid ${gridCols} ${gap}`}>
+        {heroes.map(hero => (
+          <HeroThumbnail
+            key={hero.hero_id}
+            hero={hero}
+            onClick={onHeroClick}
+            onDragStart={onDragStart}
+            isBanned={bannedHeroIds.has(hero.hero_id)}
+            isPicked={pickedHeroIds.has(hero.hero_id)}
+            isSelected={selectedHero?.hero_id === hero.hero_id}
+            settings={settings}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Main application header
+ */
+const Header = ({ onSettingsClick }) => {
+  return (
+    <header className="flex items-center justify-between p-4 h-16 bg-[#0F1724] border-b border-slate-700/50 shrink-0 shadow-sm">
+      <div className="text-xl font-bold text-white tracking-wider">
+        ROV<span className="text-cyan-400">.</span>Ban<span className="opacity-50">/</span>Pick
+      </div>
+      <div className="flex items-center gap-2">
+        {['Game 1', 'Game 2', 'Game 3'].map((game, i) => (
+          <button
+            key={game}
+            className={`px-3 py-1 text-xs font-medium rounded-full ${
+              i === 0
+                ? 'bg-cyan-500/20 text-cyan-300'
+                : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+            }`}
+          >
+            {game}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={onSettingsClick}
+        aria-label="Open settings"
+        className="p-2 rounded-full text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors"
+      >
+        <IconGear />
+      </button>
+    </header>
+  );
+};
+
+/**
+ * Modal for settings
+ */
+const SettingsModal = ({ show, onClose, settings, onSave }) => {
+  const [localSettings, setLocalSettings] = useState(settings);
+
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
+
+  if (!show) return null;
+
+  const handleChange = (key, value) => {
+    setLocalSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = () => {
+    onSave(localSettings);
+  };
+
+  const Toggle = ({ label, id, enabled, onChange }) => (
+    <div className="flex items-center justify-between">
+      <label htmlFor={id} className="text-sm font-medium text-slate-300">{label}</label>
+      <button
+        id={id}
+        role="switch"
+        aria-checked={enabled}
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
+          enabled ? 'bg-cyan-500' : 'bg-slate-600'
+        }`}
+      >
+        <span
+          className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
+            enabled ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </button>
+    </div>
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/70"
+      onClick={onClose}
+    >
+      <div
+        className={`bg-[#0F1724] w-full max-w-md p-6 rounded-lg border border-slate-700/50 shadow-xl ${settings.animations ? 'animate-fade-in' : ''}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="text-xl font-bold text-white mb-6">Settings</h2>
+        
+        <div className="space-y-6">
+          {/* Theme Setting */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Theme</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleChange('theme', 'dark')}
+                className={`p-3 rounded-lg border-2 ${localSettings.theme === 'dark' ? 'border-cyan-500' : 'border-slate-700'}`}
+              >
+                <div className="w-full h-8 rounded bg-slate-800 mb-1"></div>
+                <span className="text-sm text-slate-300">Dark</span>
+              </button>
+              <button
+                onClick={() => handleChange('theme', 'light')}
+                className={`p-3 rounded-lg border-2 ${localSettings.theme === 'light' ? 'border-cyan-500' : 'border-slate-700'}`}
+              >
+                <div className="w-full h-8 rounded bg-slate-200 mb-1"></div>
+                <span className="text-sm text-slate-300">Light</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grid Density Setting */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Grid Density</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleChange('density', 'comfortable')}
+                className={`p-3 rounded-lg border-2 ${localSettings.density === 'comfortable' ? 'border-cyan-500' : 'border-slate-700'}`}
+              >
+                <div className="grid grid-cols-3 gap-1">
+                  <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                  <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                  <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                  <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                  <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                  <div className="w-5 h-5 bg-slate-600 rounded"></div>
+                </div>
+                <span className="text-sm text-slate-300 mt-2 block">Comfortable</span>
+              </button>
+              <button
+                onClick={() => handleChange('density', 'compact')}
+                className={`p-3 rounded-lg border-2 ${localSettings.density === 'compact' ? 'border-cyan-500' : 'border-slate-700'}`}
+              >
+                <div className="grid grid-cols-4 gap-0.5">
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 bg-slate-600 rounded-sm"></div>
+                </div>
+                <span className="text-sm text-slate-300 mt-2 block">Compact</span>
+              </button>
+            </div>
+          </div>
+          
+          {/* Animations Toggle */}
+          <Toggle
+            label="Enable Animations"
+            id="animations-toggle"
+            enabled={localSettings.animations}
+            onChange={(val) => handleChange('animations', val)}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 mt-8">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-md text-slate-300 bg-slate-700 hover:bg-slate-600 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-500 transition-colors"
+          >
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN APP COMPONENT ---
+
+const App = () => {
+  // --- STATE ---
+  const [heroes, setHeroes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Settings
+  const [settings, setSettings] = useLocalStorage('rovBanPickSettings', {
+    theme: 'dark',
+    density: 'comfortable',
+    animations: true,
+  });
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Ban/Pick State
+  const [teamA_Bans, setTeamA_Bans] = useState(Array(4).fill(null));
+  const [teamA_Picks, setTeamA_Picks] = useState(Array(5).fill(null));
+  const [teamB_Bans, setTeamB_Bans] = useState(Array(4).fill(null));
+  const [teamB_Picks, setTeamB_Picks] = useState(Array(5).fill(null));
+
+  // UI State
+  const [activeTeam, setActiveTeam] = useState('Team A'); // 'Team A' or 'Team B'
+  const [filterA, setFilterA] = useState('All');
+  const [filterB, setFilterB] = useState('All');
+  const [tooltip, setTooltip] = useState(null); // { hero, x, y }
+  const [dragTarget, setDragTarget] = useState(null); // { team, type, index }
+
+  // --- DATA FETCHING ---
+  useEffect(() => {
+    const fetchHeroes = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('https://opensheet.elk.sh/1qmaUmM4ZSWMUe9M8T2HFMl2C1rdqeIOYz9o2kpza1ig/data');
+        if (!response.ok) throw new Error('Failed to fetch hero data');
+        const data = await response.json();
+        // Map data to a consistent format
+        const mappedData = data.map(hero => ({
+          ...hero,
+          hero_id: hero.hero_id.toString(), // Ensure ID is a string
+        }));
+        setHeroes(mappedData);
+      } catch (err) {
+        setError(err.message);
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHeroes();
+  }, []);
+
+  // --- SETTINGS EFFECT ---
+  useEffect(() => {
+    // Apply theme
+    document.documentElement.classList.toggle('dark', settings.theme === 'dark');
+    // Apply animations
+    if (settings.animations) {
+      document.body.classList.remove('no-animations');
+    } else {
+      document.body.classList.add('no-animations');
+    }
+  }, [settings]);
+
+  // --- MEMOIZED DERIVED STATE ---
+  
+  // Get all banned/picked hero IDs for quick lookup
+  const { bannedHeroIds, pickedHeroIds } = useMemo(() => {
+    const allSelections = [
+      ...teamA_Bans, ...teamA_Picks,
+      ...teamB_Bans, ...teamB_Picks,
+    ].filter(Boolean); // Filter out nulls
+    
+    const bannedIds = new Set([
+      ...teamA_Bans.filter(Boolean).map(h => h.hero_id),
+      ...teamB_Bans.filter(Boolean).map(h => h.hero_id),
+    ]);
+    
+    const pickedIds = new Set([
+      ...teamA_Picks.filter(Boolean).map(h => h.hero_id),
+      ...teamB_Picks.filter(Boolean).map(h => h.hero_id),
+    ]);
+
+    return { bannedHeroIds: bannedIds, pickedHeroIds: pickedIds };
+  }, [teamA_Bans, teamA_Picks, teamB_Bans, teamB_Picks]);
+
+  // Get filtered hero lists for each panel
+  const filteredHeroesA = useMemo(() => {
+    if (filterA === 'All') return heroes;
+    return heroes.filter(h => h.hero_type === filterA);
+  }, [heroes, filterA]);
+  
+  const filteredHeroesB = useMemo(() => {
+    if (filterB === 'All') return heroes;
+    return heroes.filter(h => h.hero_type === filterB);
+  }, [heroes, filterB]);
+
+
+  // --- EVENT HANDLERS ---
+  
+  const handleHeroClick = useCallback((hero, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    // Position tooltip slightly offset from the hero icon
+    setTooltip({
+      hero,
+      x: rect.right + 10,
+      y: rect.top,
+    });
+  }, []);
+
+  const handleCloseTooltip = useCallback(() => {
+    setTooltip(null);
+  }, []);
+
+  // Generic function to add a hero to the first empty slot
+  const addHeroToSlot = (hero, team, type) => {
+    if (bannedHeroIds.has(hero.hero_id) || pickedHeroIds.has(hero.hero_id)) {
+      console.warn("Hero already selected");
+      return; // Already selected
+    }
+
+    const stateKey = `team${team === 'Team A' ? 'A' : 'B'}_${type === 'ban' ? 'Bans' : 'Picks'}`;
+    const setState = team === 'Team A'
+      ? (type === 'ban' ? setTeamA_Bans : setTeamA_Picks)
+      : (type === 'ban' ? setTeamB_Bans : setTeamB_Picks);
+    
+    // Get the current array from state
+    const currentSlots = team === 'Team A' 
+      ? (type === 'ban' ? teamA_Bans : teamA_Picks)
+      : (type === 'ban' ? teamB_Bans : teamB_Picks);
+      
+    const emptyIndex = currentSlots.indexOf(null);
+    
+    if (emptyIndex !== -1) {
+      const newSlots = [...currentSlots];
+      newSlots[emptyIndex] = hero;
+      setState(newSlots);
+    } else {
+      console.warn(`No empty ${type} slots for ${team}`);
+    }
+  };
+
+  const handleBan = (hero) => {
+    addHeroToSlot(hero, activeTeam, 'ban');
+  };
+
+  const handlePick = (hero) => {
+    addHeroToSlot(hero, activeTeam, 'pick');
+  };
+
+  const handleRemove = (team, type, index) => {
+    const setState = team === 'Team A'
+      ? (type === 'ban' ? setTeamA_Bans : setTeamA_Picks)
+      : (type === 'ban' ? setTeamB_Bans : setTeamB_Picks);
+      
+    setState(prevSlots => {
+      const newSlots = [...prevSlots];
+      newSlots[index] = null;
+      return newSlots;
+    });
+  };
+
+  const handleClearSlots = () => {
+    setTeamA_Bans(Array(4).fill(null));
+    setTeamA_Picks(Array(5).fill(null));
+    setTeamB_Bans(Array(4).fill(null));
+    setTeamB_Picks(Array(5).fill(null));
+  };
+
+  // --- DRAG & DROP HANDLERS ---
+  
+  const handleDragStart = (e, hero) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(hero));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDragOver = (e, team, type, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    
+    // Get the correct slot array
+    const slots = team === 'Team A'
+      ? (type === 'ban' ? teamA_Bans : teamA_Picks)
+      : (type === 'ban' ? teamB_Bans : teamB_Picks);
+      
+    // Only set as target if the slot is empty
+    if (slots[index] === null) {
+      setDragTarget({ team, type, index });
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragTarget(null);
+  };
+
+  const handleDrop = (e, team, type, index) => {
+    e.preventDefault();
+    setDragTarget(null);
+
+    const hero = JSON.parse(e.dataTransfer.getData('application/json'));
+    if (!hero) return;
+
+    // Check if hero is already selected anywhere
+    if (bannedHeroIds.has(hero.hero_id) || pickedHeroIds.has(hero.hero_id)) {
+      return;
+    }
+    
+    // Get the correct setter
+    const setState = team === 'Team A'
+      ? (type === 'ban' ? setTeamA_Bans : setTeamA_Picks)
+      : (type === 'ban' ? setTeamB_Bans : setTeamB_Picks);
+      
+    setState(prevSlots => {
+      // Check if slot is still empty (it should be)
+      if (prevSlots[index] === null) {
+        const newSlots = [...prevSlots];
+        newSlots[index] = hero;
+        return newSlots;
+      }
+      return prevSlots;
+    });
+  };
+
+  // --- RENDER ---
+
+  if (loading) {
+    return <div className="flex h-screen w-full items-center justify-center bg-[#0B1220] text-white">Loading Heroes...</div>;
+  }
+  
+  if (error) {
+    return <div className="flex h-screen w-full items-center justify-center bg-[#0B1220] text-red-500">Error: {error}</div>;
+  }
+
+  return (
+    <div className="flex flex-col h-screen w-full bg-[#0B1220] text-slate-300">
+      {/* Custom Scrollbar & Animation Styles */}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0F1724; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #0EA5E9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
+        
+        .no-animations * {
+          transition: none !important;
+          animation: none !important;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in { animation: fadeIn 0.15s ease-out; }
+        
+        .shadow-inner-dark { box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.2); }
+        .shadow-inner-red { box-shadow: inset 0 0 10px 0 rgb(239 68 68 / 0.5); }
+        .shadow-inner-green { box-shadow: inset 0 0 10px 0 rgb(16 185 129 / 0.5); }
+      `}</style>
+
+      <Header onSettingsClick={() => setShowSettings(true)} />
+      
+      <main className="flex flex-1 grow gap-2 p-2 lg:p-4 overflow-hidden">
+        
+        {/* Team A Panel */}
+        <div className="flex-1 flex min-w-0 bg-[#0F1724] rounded-lg border border-slate-700/50 shadow-lg">
+          <SlotColumn
+            teamName="Team A"
+            bans={teamA_Bans}
+            picks={teamA_Picks}
+            onRemove={handleRemove}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            dragTarget={dragTarget}
+          />
+          <div className="flex-1 flex flex-col min-w-0 border-l border-slate-700/50">
+            <FilterBar activeFilter={filterA} onFilterChange={setFilterA} />
+            <HeroGrid
+              heroes={filteredHeroesA}
+              onHeroClick={handleHeroClick}
+              onDragStart={handleDragStart}
+              bannedHeroIds={bannedHeroIds}
+              pickedHeroIds={pickedHeroIds}
+              selectedHero={tooltip?.hero}
+              settings={settings}
+            />
+          </div>
+        </div>
+        
+        {/* Central Control Column */}
+        <div className="flex flex-col items-center justify-center gap-4 w-20 lg:w-28 shrink-0 py-4">
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => setActiveTeam('Team A')}
+              aria-pressed={activeTeam === 'Team A'}
+              className={`px-3 py-2 w-full text-sm font-bold rounded-lg transition-all ${
+                activeTeam === 'Team A'
+                  ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/20 scale-105'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              TEAM A
+            </button>
+            <span className="text-xs text-slate-500">ACTIVE</span>
+            <button
+              onClick={() => setActiveTeam('Team B')}
+              aria-pressed={activeTeam === 'Team B'}
+              className={`px-3 py-2 w-full text-sm font-bold rounded-lg transition-all ${
+                activeTeam === 'Team B'
+                  ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20 scale-105'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              TEAM B
+            </button>
+          </div>
+          <div className="flex-1"></div> {/* Spacer */}
+          <button
+            onClick={handleClearSlots}
+            className="w-full px-2 py-2 text-xs font-medium rounded-lg bg-red-800/50 text-red-400 hover:bg-red-800/80 hover:text-red-300 transition-colors"
+          >
+            Clear All
+          </button>
+        </div>
+        
+        {/* Team B Panel */}
+        <div className="flex-1 flex min-w-0 bg-[#0F1724] rounded-lg border border-slate-700/50 shadow-lg">
+          <div className="flex-1 flex flex-col min-w-0 border-r border-slate-700/50">
+            <FilterBar activeFilter={filterB} onFilterChange={setFilterB} />
+            <HeroGrid
+              heroes={filteredHeroesB}
+              onHeroClick={handleHeroClick}
+              onDragStart={handleDragStart}
+              bannedHeroIds={bannedHeroIds}
+              pickedHeroIds={pickedHeroIds}
+              selectedHero={tooltip?.hero}
+              settings={settings}
+            />
+          </div>
+          <SlotColumn
+            teamName="Team B"
+            bans={teamB_Bans}
+            picks={teamB_Picks}
+            onRemove={handleRemove}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            dragTarget={dragTarget}
+          />
+        </div>
+      </main>
+
+      {/* Global Modals/Tooltips */}
+      <HeroTooltip
+        hero={tooltip?.hero}
+        position={tooltip}
+        onClose={handleCloseTooltip}
+        onBan={handleBan}
+        onPick={handlePick}
+        settings={settings}
+      />
+      
+      <SettingsModal
+        show={showSettings}
+        onClose={() => setShowSettings(false)}
+        settings={settings}
+        onSave={setSettings}
+      />
+    </div>
+  );
+};
+
+export default App;
+
